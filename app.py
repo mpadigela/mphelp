@@ -1,20 +1,32 @@
 import streamlit as st
 from google import genai
+from google.genai import errors
+import logging
+
+# Set up basic logging to see the real error in your terminal/cloud logs
+logging.basicConfig(level=logging.INFO)
 
 # --- DISCREET CONFIGURATION ---
-# Sets the browser tab name to "mplogic"
 st.set_page_config(page_title="mplogic", layout="centered")
 
-# Hide Streamlit UI elements (Menu, Footer, Header) for maximum stealth
-hide_style = """
+# Enhanced CSS  + Reliable Hourglass
+st.markdown("""
     <style>
+    /* Hide standard UI */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .stAppDeployButton {display:none;}
+    
+    /* Force hourglass cursor globally when Streamlit is 'busy' */
+    .stApp[data-testscript-state="running"] {
+        cursor: wait !important;
+    }
+    .stApp[data-testscript-state="running"] * {
+        cursor: wait !important;
+    }
     </style>
-"""
-st.markdown(hide_style, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # --- LOAD SECRETS ---
 try:
@@ -23,30 +35,36 @@ except KeyError:
     st.error("Config Error")
     st.stop()
 
-# --- MINIMALIST INTERFACE ---
+# --- INTERFACE ---
 client = genai.Client(api_key=api_key)
 
-# Providing a label for the system but collapsing it so it's invisible to the user
 user_prompt = st.text_area(
     label="Input", 
-    label_visibility="collapsed",
-    placeholder="",
+    label_visibility="collapsed", 
+    placeholder="", 
     height=300
 )
 
-# The nondescript "OK" button
 if st.button("OK"):
-# ... rest of your code remains the same ...
     if user_prompt:
         try:
+            # Note: If this fails, try "gemini-2.0-flash" as a fallback
             response = client.models.generate_content(
                 model="gemini-3-flash-preview",
                 contents=user_prompt
             )
             
-            st.divider()
-            st.markdown(response.text)
-            
-        except Exception:
-            # Generic error to avoid technical exposure
-            st.error("Processing error.")
+            if response.text:
+                st.divider()
+                st.markdown(response.text)
+            else:
+                st.warning("No output.")
+
+        except errors.ClientError as e:
+            logging.error(f"Client Error: {e}")
+            st.error("Busy" if e.code == 429 else "Error")
+        
+        except Exception as e:
+            # This logs the REAL error to your console/logs so you can see it
+            logging.error(f"Actual Error: {e}") 
+            st.error("System error")
