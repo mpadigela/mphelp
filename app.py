@@ -1,12 +1,10 @@
 import streamlit as st
 from google import genai
-from google.genai import errors
-import logging
 
 # --- DISCREET CONFIGURATION ---
 st.set_page_config(page_title="mplogic", layout="centered")
 
-# Stealth UI CSS
+# Stealth UI: Hides all Streamlit branding
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -16,40 +14,26 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SESSION STATE ---
-if "processing" not in st.session_state:
-    st.session_state.processing = False
-
-def start_processing():
-    st.session_state.processing = True
-
 # --- LOAD SECRETS ---
 try:
+    # Ensure this matches exactly what is in your .streamlit/secrets.toml
     api_key = st.secrets["GEMINI_API_KEY"]
-except KeyError:
-    st.error("Config Error")
+    client = genai.Client(api_key=api_key)
+except Exception:
+    st.error("Config Error: Check secrets.toml")
     st.stop()
 
 # --- INTERFACE ---
-client = genai.Client(api_key=api_key)
+user_prompt = st.text_area(label="Input", label_visibility="collapsed", height=300)
 
-user_prompt = st.text_area(
-    label="Input", 
-    label_visibility="collapsed", 
-    placeholder="", 
-    height=300,
-    disabled=st.session_state.processing
-)
-
-# Button remains disabled while processing to prevent double-clicks
-if st.button("OK", on_click=start_processing, disabled=st.session_state.processing):
+if st.button("OK"):
     if user_prompt:
-        # Spinner provides visual feedback during wait
-        with st.spinner(""): 
+        # Simple spinner for feedback
+        with st.spinner(""):
             try:
-                # UPDATED TO STABLE 2.5 FLASH
+                # Using the latest 2026 stable workhorse model
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash", 
+                    model="gemini-3.1-flash-lite-preview", 
                     contents=user_prompt
                 )
                 
@@ -58,14 +42,7 @@ if st.button("OK", on_click=start_processing, disabled=st.session_state.processi
                     st.markdown(response.text)
                 else:
                     st.warning("No output.")
-
-            except errors.ClientError as e:
-                # 429 is common on free tier for high-frequency use
-                st.error("Busy" if e.code == 429 else "Error")
+                    
             except Exception as e:
-                logging.error(f"DEBUG: {e}")
-                st.error("System error")
-        
-        # Reset state to re-enable the button
-        st.session_state.processing = False
-        st.rerun()
+                # This will show you the REAL error if it fails again
+                st.error(f"System error: {str(e)[:50]}")
