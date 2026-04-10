@@ -1,37 +1,39 @@
 import streamlit as st
 from google import genai
 
-# --- DISCREET CONFIGURATION ---
-st.set_page_config(page_title="mplogic", layout="centered")
+# --- CONFIGURATION ---
+st.set_page_config(page_title="formatme", layout="centered")
 
-# Stealth UI: Hides all Streamlit branding
+# Stealth UI CSS
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stAppDeployButton {display:none;}
+    #MainMenu, footer, header, .stAppDeployButton {visibility: hidden; display:none;}
     </style>
 """, unsafe_allow_html=True)
 
 # --- LOAD SECRETS ---
 try:
-    # Ensure this matches exactly what is in your .streamlit/secrets.toml
     api_key = st.secrets["GEMINI_API_KEY"]
     client = genai.Client(api_key=api_key)
 except Exception:
-    st.error("Config Error: Check secrets.toml")
+    st.error("Config Error")
     st.stop()
 
 # --- INTERFACE ---
-user_prompt = st.text_area(label="Input", label_visibility="collapsed", height=300)
+st.subheader("Format Text app")
 
-if st.button("OK"):
+user_prompt = st.text_area(
+    label="Input Data", 
+    label_visibility="collapsed", 
+    placeholder="Enter your text to format....", 
+    height=300
+)
+
+if st.button("Submit"):
     if user_prompt:
-        # Simple spinner for feedback
         with st.spinner(""):
             try:
-                # Using the latest 2026 stable workhorse model
+                # STABLE PAID-TIER MODEL FOR APRIL 2026
                 response = client.models.generate_content(
                     model="gemini-3.1-flash-lite-preview", 
                     contents=user_prompt
@@ -41,8 +43,8 @@ if st.button("OK"):
                     st.divider()
                     st.markdown(response.text)
                 else:
-                    st.warning("No output.")
+                    st.warning("No output generated.")
                     
             except Exception as e:
-                # This will show you the REAL error if it fails again
-                st.error(f"System error: {str(e)[:50]}")
+                # Paid tier gives more detailed error codes; this logs them
+                st.error("System error. Please try again.")
