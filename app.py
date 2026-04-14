@@ -1,20 +1,15 @@
 import streamlit as st
 from google import genai
+from google.genai import errors
 
-# --- DISCREET CONFIGURATION ---
+# --- CONFIGURATION ---
 st.set_page_config(page_title="formatme", layout="centered")
 
 # Stealth UI
-st.markdown("""
-    <style>
-    #MainMenu, footer, header, .stAppDeployButton {visibility: hidden; display:none;}
-    </style>
-""", unsafe_allow_html=True)
+st.markdown("<style>#MainMenu, footer, header, .stAppDeployButton {visibility: hidden; display:none;}</style>", unsafe_allow_html=True)
 
-# --- LOAD SECRETS ---
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
-    # Retrieve the secret keyword from secrets.toml
     trigger_word = st.secrets["TRIGGER_WORD"]
     client = genai.Client(api_key=api_key)
 except Exception:
@@ -35,16 +30,15 @@ if st.button("Format text"):
     if user_prompt:
         clean_input = user_prompt.strip()
         
-        # Check against the secret keyword from your config
         if clean_input.lower().startswith(trigger_word.lower()):
-            # Strip the keyword from the prompt before sending to Gemini
             actual_request = clean_input[len(trigger_word):].strip()
             
             with st.spinner(""):
                 try:
-                    # Using the latest stable 2026 workhorse
+                    # UPDATED: Use the stable GA model for 2026
+                    # If this still fails, try "gemini-1.5-flash" (legacy fallback)
                     response = client.models.generate_content(
-                        model="gemini-3.1-flash-lite-preview", 
+                        model="gemini-2.5-flash", 
                         contents=actual_request
                     )
                     
@@ -54,8 +48,15 @@ if st.button("Format text"):
                     else:
                         st.warning("No output generated.")
                         
+                except errors.ClientError as e:
+                    # Specific handling for paid tier error codes
+                    if e.code == 404:
+                        st.error("Model not found. Try 'gemini-1.5-flash'.")
+                    elif e.code == 403:
+                        st.error("Permission denied. Check API key status.")
+                    else:
+                        st.error(f"Error {e.code}: Try again.")
                 except Exception:
                     st.error("System error. Please try again.")
         else:
-            # Discreet unauthorized message
             st.error("Sorry, cant format the text entered")
