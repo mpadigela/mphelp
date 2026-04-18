@@ -1,2 +1,2 @@
-google-genai>=1.0.0
-streamlit>=1.30.0
+anthropic
+streamlit
