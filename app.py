@@ -4,7 +4,6 @@ import anthropic
 # --- CONFIGURATION ---
 st.set_page_config(page_title="formatme", layout="centered")
 
-# Stealth UI
 st.markdown("<style>#MainMenu, footer, header, .stAppDeployButton {visibility: hidden; display:none;}</style>", unsafe_allow_html=True)
 
 try:
@@ -15,49 +14,48 @@ except Exception:
     st.error("Config Error")
     st.stop()
 
-# --- INTERFACE ---
+# --- SESSION STATE ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# --- LAYOUT ---
 st.subheader("Format Text app")
 
-user_prompt = st.text_area(
-    label="Input Data",
-    label_visibility="collapsed",
-    placeholder="Enter your text to format....",
-    height=300
-)
+chat_area = st.container()
 
-if st.button("Format text"):
-    if user_prompt:
-        clean_input = user_prompt.strip()
+with chat_area:
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-        if clean_input.lower().startswith(trigger_word.lower()):
-            actual_request = clean_input[len(trigger_word):].strip()
+# Input pinned to bottom, clears automatically after submit
+user_prompt = st.chat_input("Enter your text to format...")
 
-            with st.spinner(""):
-                try:
-                    message = client.messages.create(
-                        model="claude-sonnet-4-5",
-                        max_tokens=1024,
-                        messages=[
-                            {"role": "user", "content": actual_request}
-                        ]
-                    )
+# --- PROCESS SUBMISSION ---
+if user_prompt:
+    clean_input = user_prompt.strip()
+    st.session_state.messages.append({"role": "user", "content": clean_input})
 
-                    response_text = message.content[0].text
-                    if response_text:
-                        st.divider()
-                        st.markdown(response_text)
-                    else:
-                        st.warning("No output generated.")
+    if clean_input.lower().startswith(trigger_word.lower()):
+        actual_request = clean_input[len(trigger_word):].strip()
+        try:
+            with st.spinner("Formatting your text..."):
+                message = client.messages.create(
+                    model="claude-sonnet-4-5",
+                    max_tokens=1024,
+                    messages=[{"role": "user", "content": actual_request}]
+                )
+            response_text = message.content[0].text
+            st.session_state.messages.append({"role": "assistant", "content": response_text})
+        except anthropic.AuthenticationError:
+            st.session_state.messages.append({"role": "assistant", "content": "❌ Invalid API key."})
+        except anthropic.PermissionDeniedError:
+            st.session_state.messages.append({"role": "assistant", "content": "❌ Permission denied."})
+        except anthropic.NotFoundError:
+            st.session_state.messages.append({"role": "assistant", "content": "❌ Model not found."})
+        except Exception:
+            st.session_state.messages.append({"role": "assistant", "content": "❌ System error. Please try again."})
+    else:
+        st.session_state.messages.append({"role": "assistant", "content": "❌ Sorry, can't format the text entered."})
 
-                except anthropic.AuthenticationError:
-                    st.error("Invalid API key. Check your ANTHROPIC_API_KEY.")
-                except anthropic.PermissionDeniedError:
-                    st.error("Permission denied. Check your API key status.")
-                except anthropic.NotFoundError:
-                    st.error("Model not found. Check the model name.")
-                except anthropic.APIError:
-                    st.error("API error. Please try again.")
-                except Exception:
-                    st.error("System error. Please try again.")
-        else:
-            st.error("Sorry, cant format the text entered")
+    st.rerun()
