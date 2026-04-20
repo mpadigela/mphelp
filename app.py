@@ -28,8 +28,15 @@ with chat_area:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-# Input pinned to bottom, clears automatically after submit
+# Input pinned to bottom
 user_prompt = st.chat_input("Enter your text to format...")
+
+# New Request button below chat input, aligned right
+_, btn_col = st.columns([4, 1])
+with btn_col:
+    if st.button("New Request", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
 
 # --- PROCESS SUBMISSION ---
 if user_prompt:
@@ -38,12 +45,18 @@ if user_prompt:
 
     if clean_input.lower().startswith(trigger_word.lower()):
         actual_request = clean_input[len(trigger_word):].strip()
+
+        # Replace the last user message with the trigger-stripped version
+        st.session_state.messages[-1] = {"role": "user", "content": actual_request}
+
         try:
             with st.spinner("Formatting your text..."):
+                # Only send last 10 messages to keep costs down
+                recent_history = st.session_state.messages[-10:]
                 message = client.messages.create(
                     model="claude-sonnet-4-5",
                     max_tokens=1024,
-                    messages=[{"role": "user", "content": actual_request}]
+                    messages=recent_history
                 )
             response_text = message.content[0].text
             st.session_state.messages.append({"role": "assistant", "content": response_text})
@@ -53,8 +66,10 @@ if user_prompt:
             st.session_state.messages.append({"role": "assistant", "content": "❌ Permission denied."})
         except anthropic.NotFoundError:
             st.session_state.messages.append({"role": "assistant", "content": "❌ Model not found."})
-        except Exception:
-            st.session_state.messages.append({"role": "assistant", "content": "❌ System error. Please try again."})
+        # except Exception:
+        #     st.session_state.messages.append({"role": "assistant", "content": "❌ System error. Please try again."})
+        except Exception as e:
+            st.session_state.messages.append({"role": "assistant", "content": f"❌ Error: {str(e)}"})
     else:
         st.session_state.messages.append({"role": "assistant", "content": "❌ Sorry, can't format the text entered."})
 
